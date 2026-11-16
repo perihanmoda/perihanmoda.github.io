@@ -2415,6 +2415,7 @@ SAYFA.konusma = function(o){
 .ay .gun-btn{min-height:60px;border-radius:12px}
 .ay .gun-btn b{font-size:19px}
 .ay .gun-btn.disari{opacity:.35}
+.takvim-liste .orta b,.takvim-liste .orta span{white-space:normal}
 .takvim-lejant{display:flex;gap:16px;justify-content:center;color:var(--muted);font-size:15px;margin-top:10px}
 .takvim-lejant span{display:inline-flex;align-items:center;gap:6px}
 .takvim-lejant i{width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block}
@@ -2474,7 +2475,7 @@ SAYFA.takvim = function(o){
           onclick:()=>{ o.secili=t; if (t.slice(0,7)!==o.ay) o.ay=t.slice(0,7); yiginCiz(); }}, el('b',{text:String(g.getDate())}), noktalar(t)); })),
     el('div',{class:'takvim-lejant'}, el('span',{}, el('i'), 'Randevu'), el('span',{}, el('i',{class:'altin'}), 'Düğün, teslim, dönüş')),
     bolum(gunAdi(o.secili)===tarihKisa(o.secili) ? tarihUzun(o.secili) : gunAdi(o.secili)+', '+tarihUzun(o.secili), ol.rs.length||null,
-      satirlar.length ? liste(satirlar) : el('div',{class:'kart'}, bosDurum('takvim','Bu gün boş','Başka bir güne dokun.'))),
+      satirlar.length ? el('div',{class:'takvim-liste'}, liste(satirlar)) : el('div',{class:'kart'}, bosDurum('takvim','Bu gün boş','Başka bir güne dokun.'))),
     satirlar.length ? el('p',{class:'muted',style:'margin:10px 4px 0',text:'Randevuyu düzeltmek için üstüne dokun.'}) : null,
     el('button',{class:'btn yumusak tam',type:'button',style:'margin-top:16px',onclick:()=>gelinSecPanel(g=>randevuPanel(g, null, o.secili))}, ikon('arti'), 'Bu güne randevu ekle')));
 };
