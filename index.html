@@ -852,6 +852,7 @@ function bugunCiz(){
 
   const parcalar = [
     el('div',{class:'selam'}, el('h2',{text:selamSozu()+' '+S.me.ad}), el('p',{text:tarihUzun(b)})),
+    haftaSeridi(),
     bugunR.length
       ? el('div',{class:'hikayeler',role:'list','aria-label':'Bugün gelecekler'}, ...bugunR.map(p=>{ const g=gelin(p.gelinId);
           return el('button',{class:'hikaye',type:'button',role:'listitem',onclick:()=>ac({tip:'gelin',id:g.id})},
@@ -1253,8 +1254,8 @@ async function yapildiIsaretle(g, r){
   bildir('Yapıldı olarak işaretlendi.');
   if (r.tur==='prova' && await onay('Sıradaki provayı verelim mi?','Gelin daha gelecekse şimdi gün verebilirsin.','Gün ver')) randevuPanel(g,null);
 }
-function randevuPanel(g, p){
-  const f = p ? {tur:p.tur, tarih:p.tarih, saat:p.saat, not:p.not} : {tur:'prova', tarih:'', saat:'', not:''};
+function randevuPanel(g, p, varsayilanTarih){
+  const f = p ? {tur:p.tur, tarih:p.tarih, saat:p.saat, not:p.not} : {tur:'prova', tarih:varsayilanTarih||'', saat:'', not:''};
   ac({tip:'panel', duzenleme:true, kur:(kapatFn)=>[
     el('h3',{text:p?'Randevuyu değiştir':'Yeni randevu'}), el('p',{class:'aciklama',text:g.ad}),
     secenek(Object.entries(RANDEVU_AD), ()=>f.tur, k=>f.tur=k, 'dort'),
@@ -2389,6 +2390,108 @@ SAYFA.konusma = function(o){
       el('button',{class:'btn tam',type:'button',onclick:()=>{ sesBaglami(); konusmaDongusu(o); }}, ikon('mik'), 'Tekrar sesle dene')) : null),
     el('div',{class:'alt-sabit'}, el('div',{class:'wrap'}, el('button',{class:'btn tehlike tam',type:'button',onclick:()=>kapat(o)}, 'Bitir'))));
 };
+</script>
+
+<style>
+.hafta-kart{margin-top:16px;padding:14px 12px 12px}
+.hafta-bas{display:flex;align-items:center;justify-content:space-between;margin:0 4px 10px}
+.hafta-bas b{font-size:19px}
+.hafta{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.gun-btn{min-height:78px;border-radius:16px;border:2px solid var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 0}
+.gun-btn small{font-size:13px;font-weight:700;color:var(--muted)}
+.gun-btn b{font-size:22px;font-variant-numeric:tabular-nums;line-height:1.1}
+.gun-btn.bugun{background:var(--gradyan);border-color:transparent;color:#fff}
+.gun-btn.bugun small{color:rgba(255,255,255,.85)}
+.gun-btn.secili{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.noktalar{display:flex;gap:3px;height:8px;align-items:center}
+.noktalar i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.noktalar i.altin{background:var(--altin)}
+.gun-btn.bugun .noktalar i{background:#fff}
+.ay-bas{display:flex;align-items:center;justify-content:space-between;margin:14px 0 10px}
+.ay-bas h2{font-family:var(--f-display);font-size:28px;font-weight:600;margin:0}
+.ok-btn{width:60px;height:56px;border-radius:16px;border:2px solid var(--line-2);background:var(--surface);font-size:28px;font-weight:700;color:var(--accent)}
+.ay{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.ay .gun-adi{text-align:center;font-size:14px;font-weight:700;color:var(--muted);padding:4px 0}
+.ay .gun-btn{min-height:60px;border-radius:12px}
+.ay .gun-btn b{font-size:19px}
+.ay .gun-btn.disari{opacity:.35}
+.takvim-lejant{display:flex;gap:16px;justify-content:center;color:var(--muted);font-size:15px;margin-top:10px}
+.takvim-lejant span{display:inline-flex;align-items:center;gap:6px}
+.takvim-lejant i{width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block}
+.takvim-lejant i.altin{background:var(--altin)}
+</style>
+<script>
+/* Takvim: Bugün ekranında haftalık şerit, ayrıca aylık takvim sayfası. Günden randevu ekleme ve düzeltme. */
+const GUN_KISA = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+function gunOlaylari(t){
+  const rs = S.v.provalar.filter(p=>p.tarih===t && p.durum!=='iptal' && gelin(p.gelinId)).sort((a,b)=>(a.saat||'99').localeCompare(b.saat||'99'));
+  const dugun = S.v.gelinler.filter(g=>g.dugunTarihi===t && g.durum!=='iptal' && !g.anonim);
+  const teslim = S.v.gelinler.filter(g=>g.teslimTarihi===t && g.durum==='aktif');
+  const iade = S.v.gelinler.filter(g=>g.iadeTarihi===t && g.tur==='kiralik' && g.durum==='teslim');
+  return { rs, dugun, teslim, iade, sayi: rs.length };
+}
+function noktalar(t){
+  const o = gunOlaylari(t);
+  const ls = o.rs.slice(0,3).map(()=>el('i')).concat((o.dugun.length||o.teslim.length||o.iade.length) ? [el('i',{class:'altin'})] : []);
+  return el('span',{class:'noktalar','aria-hidden':'true'}, ...ls.slice(0,4));
+}
+function gunEtiketi(t){ const o=gunOlaylari(t); const n=o.sayi; return tarihUzun(t)+(n?', '+n+' randevu':', randevu yok')+(o.dugun.length?', düğün var':''); }
+function haftaSeridi(){
+  const b = bugun(), d = isoTarih(b), bas = gunEkle(b, -((d.getDay()+6)%7)); // pazartesiden başla
+  const gunler = Array.from({length:7}, (_,i)=>gunEkle(bas,i));
+  return el('div',{class:'kart hafta-kart'},
+    el('div',{class:'hafta-bas'}, el('b',{text:'Bu hafta'}), el('button',{class:'geri',type:'button',style:'min-height:44px',onclick:()=>ac({tip:'takvim'})}, ikon('takvim'), 'Takvimi aç')),
+    el('div',{class:'hafta'}, ...gunler.map(t=>{ const g=isoTarih(t);
+      return el('button',{class:'gun-btn'+(t===b?' bugun':''),type:'button','aria-label':gunEtiketi(t),onclick:()=>ac({tip:'takvim', secili:t})},
+        el('small',{text:GUN_KISA[g.getDay()]}), el('b',{text:String(g.getDate())}), noktalar(t)); })));
+}
+SAYFA.takvim = function(o){
+  if (!o.secili) o.secili = bugun();
+  if (!o.ay) o.ay = o.secili.slice(0,7);
+  const [y, a] = o.ay.split('-').map(Number);
+  const ilk = new Date(y, a-1, 1), kaydir = (ilk.getDay()+6)%7;
+  const bas = gunEkle(y+'-'+String(a).padStart(2,'0')+'-01', -kaydir);
+  const hucreler = Array.from({length:42}, (_,i)=>gunEkle(bas,i));
+  const ayDegis = n=>{ const d=new Date(y, a-1+n, 1); o.ay = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); yiginCiz(); };
+  const ol = gunOlaylari(o.secili);
+  const satirlar = [
+    ...ol.rs.map(p=>{ const g=gelin(p.gelinId); const ad = p.tur==='prova'?provaSirasi(p)+'. prova':RANDEVU_AD[p.tur];
+      return el('li',{class:'satir-kap'}, el('button',{class:'satir',type:'button','aria-label':g.ad+' '+ad+' düzelt',onclick:()=>randevuPanel(g,p)},
+        el('span',{class:'saat',text:p.saat||'Gün içi'}), avatar(g), el('span',{class:'orta'}, el('b',{text:g.ad}), el('span',{text:ad+(p.durum==='yapildi'?' · yapıldı':'')}))),
+        el('button',{class:'btn kucuk',type:'button',style:'margin-right:12px','aria-label':g.ad+' kartını aç',onclick:()=>ac({tip:'gelin',id:g.id})}, 'Kart')); }),
+    ...ol.dugun.map(g=>gelinSatiri(g, 'Düğünü bu gün', el('span',{class:'sag'}, el('b',{text:'Düğün'})))),
+    ...ol.teslim.map(g=>gelinSatiri(g, 'Gelinlik teslim günü', el('span',{class:'sag'}, el('b',{text:'Teslim'})))),
+    ...ol.iade.map(g=>gelinSatiri(g, 'Kiralık geri gelecek'+(g.iadeKisi?' · '+g.iadeKisi:''), el('span',{class:'sag'}, el('b',{text:'Dönüş'}))))
+  ];
+  return el('div',{class:'sayfa'}, sayfaBas(o,'Takvim'), el('div',{class:'wrap ic-alt'},
+    el('div',{class:'ay-bas'},
+      el('button',{class:'ok-btn',type:'button','aria-label':'Önceki ay',onclick:()=>ayDegis(-1)}, '‹'),
+      el('h2',{text:AYLAR[a-1]+' '+y}),
+      el('button',{class:'ok-btn',type:'button','aria-label':'Sonraki ay',onclick:()=>ayDegis(1)}, '›')),
+    el('div',{class:'ay'}, ...['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'].map(x=>el('div',{class:'gun-adi',text:x})),
+      ...hucreler.map(t=>{ const g=isoTarih(t);
+        return el('button',{class:'gun-btn'+(t===bugun()?' bugun':'')+(t===o.secili?' secili':'')+(g.getMonth()!==a-1?' disari':''),type:'button','aria-label':gunEtiketi(t),'aria-pressed':String(t===o.secili),
+          onclick:()=>{ o.secili=t; if (t.slice(0,7)!==o.ay) o.ay=t.slice(0,7); yiginCiz(); }}, el('b',{text:String(g.getDate())}), noktalar(t)); })),
+    el('div',{class:'takvim-lejant'}, el('span',{}, el('i'), 'Randevu'), el('span',{}, el('i',{class:'altin'}), 'Düğün, teslim, dönüş')),
+    bolum(gunAdi(o.secili)===tarihKisa(o.secili) ? tarihUzun(o.secili) : gunAdi(o.secili)+', '+tarihUzun(o.secili), ol.rs.length||null,
+      satirlar.length ? liste(satirlar) : el('div',{class:'kart'}, bosDurum('takvim','Bu gün boş','Başka bir güne dokun.'))),
+    satirlar.length ? el('p',{class:'muted',style:'margin:10px 4px 0',text:'Randevuyu düzeltmek için üstüne dokun.'}) : null,
+    el('button',{class:'btn yumusak tam',type:'button',style:'margin-top:16px',onclick:()=>gelinSecPanel(g=>randevuPanel(g, null, o.secili))}, ikon('arti'), 'Bu güne randevu ekle')));
+};
+/** Randevu eklemek için gelin seç: arama kutusu ve aktif gelinler. */
+function gelinSecPanel(sec){
+  ac({tip:'panel', duzenleme:true, kur:(k)=>{
+    const liste2 = el('ul',{class:'liste kart',style:'max-height:52vh;overflow-y:auto;margin-top:10px'});
+    const ara = el('input',{class:'girdi',type:'search',placeholder:'Gelinin adını yaz','aria-label':'Gelin ara'});
+    const ciz = ()=>{ const q = norm(ara.value);
+      const ls = S.v.gelinler.filter(g=>g.durum==='aktif' && gelinEslesir(g,q)).sort((a,b)=>a.ad.localeCompare(b.ad,'tr')).slice(0,40);
+      liste2.replaceChildren(...(ls.length ? ls.map(g=>el('li',{}, el('button',{class:'satir',type:'button',onclick:()=>{ k(); setTimeout(()=>sec(g),450); }},
+        avatar(g), el('span',{class:'orta'}, el('b',{text:g.ad}), el('span',{text:gelinAltYazi(g)}))))) : [el('li',{}, el('p',{class:'muted',style:'padding:14px',text:'Bulamadım.'}))])); };
+    ara.addEventListener('input', ciz); ciz(); setTimeout(()=>ara.focus(),150);
+    return [el('h3',{text:'Kimin randevusu?'}), ara, liste2,
+      el('button',{class:'btn tam',type:'button',style:'margin-top:12px',onclick:()=>{ k(); setTimeout(()=>ac({tip:'yeniGelin',duzenleme:true}),450); }}, ikon('arti'), 'Listede yok, yeni gelin ekle')];
+  }});
+}
 </script>
 
 <script>baslat();</script>
